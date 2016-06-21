@@ -1,0 +1,206 @@
+<?php
+class curry
+{
+    private $f;
+    private $args;
+    private $count;
+    public function __construct($f, $args = [])
+    {
+        if ($f instanceof curry) {
+            $this->f = $f->f;
+            $this->count = $f->count;
+            $this->args = array_merge($f->args, $args);
+        }
+        else {
+            $this->f = $f;
+            $this->count = count((new ReflectionFunction($f))->getParameters());
+            $this->args = $args;
+        }
+    }
+
+    public function __invoke()
+    {
+        if (count($this->args) + func_num_args() < $this->count) {
+            return new curry($this, func_get_args());
+        }
+        else {
+            $args = array_merge($this->args, func_get_args());
+            $r = call_user_func_array($this->f, array_splice($args, 0, $this->count));
+            return is_callable($r) ? call_user_func(new curry($r, $args)) : $r;
+        }
+    }
+}
+
+$curry = function ($f) {
+    return new curry($f);
+};
+
+$pipe = function () {
+    $functions = func_get_args();
+    return function ($x) use($functions) {
+        $result =
+            call_user_func_array(
+                $functions[0],
+                func_get_args());
+        return array_reduce(
+            array_slice($functions, 1),
+            function ($result, $func) {
+                return $func($result);
+            },
+            $result);
+    };
+};
+
+$map = $curry('array_map');
+
+$filter = $curry(function ($func, $arr) {
+    return array_filter($arr, $func);
+});
+
+$reduce = $curry(function ($func, $acc, $arr) {
+    return array_reduce($arr, $func, $acc);
+});
+
+/***/
+
+$split_every = $curry(function ($every, $string) {
+    return str_split($string, $every);
+});
+
+$reverse = $curry(function ($x) {
+    if(is_string($x)) {
+        return strrev($x);
+    }
+    return array_reverse($x);
+});
+
+$implode = $curry('implode');
+
+$comma_separate = $curry(function ($width, $number)
+    use(
+        $pipe,
+        $reverse,
+        $split_every,
+        $reverse,
+        $map,
+        $implode) {
+
+    return $pipe(
+        $reverse,
+        $split_every($width),
+        $reverse,
+        $map($reverse),
+        $implode(','))
+            ($number);
+});
+
+$to_string = function ($x) {
+    return (string) $x;
+};
+
+$concat = $curry(function ($str1, $str2) {
+    return $str1.$str2;
+});
+
+$format_dollars =
+    $pipe(
+        $to_string,
+        $comma_separate(3),
+        $concat('$'));
+
+$explode = $curry(function ($delimeter, $string) {
+    return explode($delimeter, $string);
+});
+
+$format_dollars_cents =
+    $pipe(
+        $to_string,
+        $explode('.'),
+        function ($arr) use ($format_dollars) {
+            return [
+                $format_dollars($arr[0]),
+                array_key_exists(1, $arr)
+                    ? mb_strimwidth($arr[1], 0, 2)
+                    : '00'
+            ];
+        },
+        $implode('.'));
+
+$get = $curry(function ($key, $arr) {
+    return $arr[$key];
+});
+
+$get_path = $curry(function ($path, $arr) {
+    return array_reduce(
+        array_slice($path, 1),
+        function ($arr, $step) {
+            return $arr[$step];
+        },
+        $arr[$path[0]]);
+});
+
+$set = $curry(function ($key, $value, $arr) {
+    $new_arr = array_replace_recursive([], $arr);
+    $new_arr[$key] = $value;
+    return $new_arr;
+});
+
+$over = $curry(function($getter, $setter, $func, $arr) {
+    return $setter($func($getter($arr)), $arr);
+});
+
+$format_purchase_price =
+    $over(
+        $get('price'),
+        $set('formatted_price'),
+        $format_dollars_cents);
+
+$purchase = [
+    'name' => 'hoverboard',
+    'price' => 30000
+];
+
+$tap = function ($x) {
+    print_r($x);
+    return $x;
+};
+
+$broken_comma_separate = $curry(function ($width, $number)
+    use(
+        $pipe,
+        $reverse,
+        $split_every,
+        $reverse,
+        $map,
+        $implode,
+        $tap) {
+
+    return $pipe(
+        $reverse,
+        $split_every($width),
+        $reverse,
+        $tap,
+        $implode(','))
+            ($number);
+});
+
+$add_2 = function ($a, $b) {
+    return $a + $b;
+};
+
+$assert_equals = function ($x, $y) {
+    return $x === $y;
+};
+
+$test = function($error_message, $test_result) {
+    if(!$test_result) {
+        print_r("\n\n$error_message\n\n");
+    } else {
+        echo '.';
+    }
+};
+
+$test('add_2 Should return a sum of its two arguments',
+    $assert_equals(3, $add_2(1, 4)));
+
+?>

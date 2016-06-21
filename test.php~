@@ -1,0 +1,12 @@
+<?php
+use PHPUnit\Framework\TestCase;
+require_once('add.php');
+
+class test extends TestCase
+{
+    public function testExpectFooActualFoo()
+    {
+        $this->assertEquals(3, $add_2(1, 2));
+    }
+}
+?>

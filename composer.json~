@@ -1,0 +1,15 @@
+{
+    "require": {
+        "lstrojny/functional-php": "~1.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "5.4.*"
+    },
+    "require-dev": {
+        "phpspec/phpspec": "~2.0"
+    },
+    "config": {
+        "bin-dir": "bin"
+    },
+    "autoload": {"psr-0": {"": "src"}}
+}
